@@ -63,7 +63,7 @@ struct ContentView: View {
 
     private var statusBar: some View {
         HStack(spacing: 10) {
-            Text(controller.fileName)
+            Text(controller.displayFileName)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -84,9 +84,16 @@ struct ContentView: View {
                     .truncationMode(.tail)
             }
 
-            Text(controller.saveStatus)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(controller.isDirty ? .orange : .green)
+            Label {
+                Text(controller.saveStatus)
+                    .font(.caption.weight(.semibold))
+            } icon: {
+                Image(systemName: controller.isDirty ? "circle.fill" : "checkmark.circle.fill")
+                    .imageScale(.small)
+            }
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(controller.isDirty ? .orange : .green)
+            .accessibilityLabel(controller.saveStatus)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)

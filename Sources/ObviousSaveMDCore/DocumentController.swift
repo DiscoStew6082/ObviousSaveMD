@@ -58,16 +58,20 @@ public final class DocumentController: ObservableObject {
         fileURL?.lastPathComponent ?? "Untitled"
     }
 
+    public var displayFileName: String {
+        isDirty ? "* \(fileName)" : fileName
+    }
+
     public var filePathDescription: String {
         fileURL?.path ?? "No file selected"
     }
 
     public var saveStatus: String {
-        isDirty ? "Edited" : "Saved"
+        isDirty ? "Modified" : "Saved"
     }
 
     public var windowTitle: String {
-        "\(fileName) - \(saveStatus)"
+        "\(displayFileName) - \(saveStatus)"
     }
 
     public func replaceContentFromEditor(_ newContent: String) {
@@ -128,16 +132,12 @@ public final class DocumentController: ObservableObject {
         fileURL?.lastPathComponent ?? "Untitled.md"
     }
 
-    private var displayFileName: String {
-        fileName
-    }
-
     private func resolveUnsavedChangesBeforeReplacingDocument() -> Bool {
         guard isDirty else {
             return true
         }
 
-        switch prompt.promptForUnsavedChanges(fileName: displayFileName) {
+        switch prompt.promptForUnsavedChanges(fileName: fileName) {
         case .save:
             return save()
         case .discard:

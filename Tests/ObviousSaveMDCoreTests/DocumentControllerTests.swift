@@ -269,6 +269,23 @@ struct DocumentControllerTests {
         #expect(openedEmptyFile.canSave)
     }
 
+    @Test func modifiedDocumentDisplaysExplicitModifiedIndicator() {
+        let clean = DocumentController(fileURL: URL(fileURLWithPath: "/tmp/notes.md"))
+        let dirty = DocumentController(
+            content: "Draft",
+            fileURL: URL(fileURLWithPath: "/tmp/notes.md"),
+            isDirty: true
+        )
+
+        #expect(clean.displayFileName == "notes.md")
+        #expect(clean.saveStatus == "Saved")
+        #expect(clean.windowTitle == "notes.md - Saved")
+
+        #expect(dirty.displayFileName == "* notes.md")
+        #expect(dirty.saveStatus == "Modified")
+        #expect(dirty.windowTitle == "* notes.md - Modified")
+    }
+
     @Test func utf8FileIOPreservesNonAsciiMarkdown() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
