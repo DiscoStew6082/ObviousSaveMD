@@ -9,10 +9,15 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
+        Self.makeConfiguredScrollView(text: text, delegate: context.coordinator)
+    }
+
+    static func makeConfiguredScrollView(text: String, delegate: NSTextViewDelegate? = nil) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
         scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
+        scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = false
+        scrollView.scrollerStyle = .legacy
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
 
@@ -20,7 +25,7 @@ struct MarkdownTextView: NSViewRepresentable {
             return scrollView
         }
 
-        textView.delegate = context.coordinator
+        textView.delegate = delegate
         textView.string = text
         textView.isEditable = true
         textView.isSelectable = true
@@ -40,11 +45,17 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.isAutomaticDataDetectionEnabled = false
         textView.isContinuousSpellCheckingEnabled = false
         textView.isGrammarCheckingEnabled = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.autoresizingMask = [.width]
 
         if let textContainer = textView.textContainer {
-            textContainer.widthTracksTextView = false
+            textContainer.widthTracksTextView = true
+            textContainer.heightTracksTextView = false
             textContainer.containerSize = NSSize(
-                width: CGFloat.greatestFiniteMagnitude,
+                width: scrollView.contentSize.width,
                 height: CGFloat.greatestFiniteMagnitude
             )
         }

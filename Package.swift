@@ -24,6 +24,10 @@ let package = Package(
             name: "ObviousSaveMDCoreTests",
             dependencies: ["ObviousSaveMDCore"]
         ),
+        .testTarget(
+            name: "ObviousSaveMDTests",
+            dependencies: ["ObviousSaveMD"]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
