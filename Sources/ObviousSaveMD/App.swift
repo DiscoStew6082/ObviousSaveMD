@@ -19,7 +19,9 @@ private struct EditorCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("Open...") {
-                controller?.open()
+                Task {
+                    await controller?.open()
+                }
             }
             .keyboardShortcut("o", modifiers: .command)
             .disabled(controller == nil)

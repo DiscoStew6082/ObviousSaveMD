@@ -18,4 +18,12 @@ struct MarkdownTextViewTests {
         #expect(textView.textContainer?.widthTracksTextView == true)
         #expect(textView.textContainer?.heightTracksTextView == false)
     }
+
+    @Test func openDialogDocumentTypesAllowMarkdownAndPlainTextOnly() {
+        #expect(EditableDocumentContentTypes.allowsFileName("notes.md"))
+        #expect(EditableDocumentContentTypes.allowsFileName("notes.markdown"))
+        #expect(EditableDocumentContentTypes.allowsFileName("notes.txt"))
+        #expect(!EditableDocumentContentTypes.allowsFileName("photo.png"))
+        #expect(!EditableDocumentContentTypes.allowsFileName("archive.zip"))
+    }
 }

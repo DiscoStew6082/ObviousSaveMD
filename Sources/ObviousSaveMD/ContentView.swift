@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import ObviousSaveMDCore
 
 struct ContentView: View {
@@ -29,7 +30,9 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
-                    controller.open()
+                    Task {
+                        await controller.open()
+                    }
                 } label: {
                     Label("Open", systemImage: "folder")
                         .labelStyle(.titleAndIcon)
@@ -113,6 +116,21 @@ struct ContentView: View {
     }
 }
 
+enum EditableDocumentContentTypes {
+    private static let allowedExtensions = Set(["md", "markdown", "txt", "text"])
+
+    static let allowedContentTypes: [UTType] = [
+        UTType(filenameExtension: "md", conformingTo: .plainText),
+        UTType(filenameExtension: "markdown", conformingTo: .plainText),
+        UTType(filenameExtension: "txt", conformingTo: .plainText),
+        .plainText,
+    ].compactMap { $0 }
+
+    static func allowsFileName(_ fileName: String) -> Bool {
+        allowedExtensions.contains(URL(fileURLWithPath: fileName).pathExtension.lowercased())
+    }
+}
+
 private final class AppKitFileDialogs: FileDialoging {
     func chooseOpenURL() -> URL? {
         let panel = NSOpenPanel()
@@ -120,6 +138,7 @@ private final class AppKitFileDialogs: FileDialoging {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = EditableDocumentContentTypes.allowedContentTypes
         return panel.runModal() == .OK ? panel.url : nil
     }
 

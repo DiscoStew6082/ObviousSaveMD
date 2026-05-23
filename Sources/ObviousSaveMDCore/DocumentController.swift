@@ -7,8 +7,8 @@ public enum UnsavedChangesDecision {
     case cancel
 }
 
-public protocol TextFileIO {
-    func readText(from url: URL) throws -> String
+public protocol TextFileIO: Sendable {
+    func readText(from url: URL) async throws -> String
     func writeText(_ text: String, to url: URL) throws
 }
 
@@ -33,6 +33,7 @@ public final class DocumentController: ObservableObject {
     private let fileIO: TextFileIO
     private let dialogs: FileDialoging
     private let prompt: UnsavedChangesPrompting
+    private var openRequestGeneration = 0
 
     public init(
         content: String = "",
@@ -84,7 +85,10 @@ public final class DocumentController: ObservableObject {
     }
 
     @discardableResult
-    public func open() -> Bool {
+    public func open() async -> Bool {
+        openRequestGeneration += 1
+        let currentOpenRequestGeneration = openRequestGeneration
+
         guard resolveUnsavedChangesBeforeReplacingDocument() else {
             return false
         }
@@ -93,13 +97,34 @@ public final class DocumentController: ObservableObject {
             return false
         }
 
+        let documentSnapshot = DocumentSnapshot(
+            content: content,
+            fileURL: fileURL,
+            isDirty: isDirty
+        )
+
         do {
-            content = try fileIO.readText(from: selectedURL)
+            let loadedContent = try await fileIO.readText(from: selectedURL)
+
+            guard currentOpenRequestGeneration == openRequestGeneration else {
+                return false
+            }
+
+            guard documentSnapshot.matches(content: content, fileURL: fileURL, isDirty: isDirty) else {
+                lastErrorMessage = "The selected file was not opened because the current document changed."
+                return false
+            }
+
+            content = loadedContent
             fileURL = selectedURL
             isDirty = false
             lastErrorMessage = nil
             return true
         } catch {
+            guard currentOpenRequestGeneration == openRequestGeneration else {
+                return false
+            }
+
             lastErrorMessage = error.localizedDescription
             return false
         }
@@ -163,10 +188,20 @@ public final class DocumentController: ObservableObject {
     }
 }
 
+private struct DocumentSnapshot {
+    let content: String
+    let fileURL: URL?
+    let isDirty: Bool
+
+    func matches(content: String, fileURL: URL?, isDirty: Bool) -> Bool {
+        self.content == content && self.fileURL == fileURL && self.isDirty == isDirty
+    }
+}
+
 public struct UnavailableTextFileIO: TextFileIO {
     public init() {}
 
-    public func readText(from url: URL) throws -> String {
+    public func readText(from url: URL) async throws -> String {
         throw CocoaError(.fileReadUnknown)
     }
 
