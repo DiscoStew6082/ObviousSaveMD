@@ -6,13 +6,15 @@ import ObviousSaveMDCore
 struct ContentView: View {
     @StateObject private var controller: DocumentController
     @StateObject private var closeHandler = WindowCloseHandler()
+    private let editorCommandPerformer: EditorCommandPerforming
 
     init(controller: DocumentController = DocumentController(
         fileIO: UTF8TextFileIO(),
         dialogs: AppKitFileDialogs(),
         prompt: AppKitUnsavedChangesPrompt()
-    )) {
+    ), editorCommandPerformer: EditorCommandPerforming = AppKitEditorCommandPerformer()) {
         _controller = StateObject(wrappedValue: controller)
+        self.editorCommandPerformer = editorCommandPerformer
     }
 
     var body: some View {
@@ -28,6 +30,12 @@ struct ContentView: View {
             statusBar
         }
         .toolbar {
+            ToolbarItemGroup {
+                ForEach(EditorCommand.toolbarCommands, id: \.self) { command in
+                    editorCommandButton(command)
+                }
+            }
+
             ToolbarItemGroup {
                 Button {
                     Task {
@@ -62,6 +70,16 @@ struct ContentView: View {
         }
         .background(windowAccessor)
         .focusedSceneObject(controller)
+    }
+
+    private func editorCommandButton(_ command: EditorCommand) -> some View {
+        Button {
+            editorCommandPerformer.perform(command)
+        } label: {
+            Label(command.title, systemImage: command.systemImage)
+                .labelStyle(.titleAndIcon)
+        }
+        .help(command.title)
     }
 
     private var statusBar: some View {
