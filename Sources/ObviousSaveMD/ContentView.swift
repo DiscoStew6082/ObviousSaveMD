@@ -149,14 +149,55 @@ enum EditableDocumentContentTypes {
     }
 }
 
-private final class AppKitFileDialogs: FileDialoging {
-    func chooseOpenURL() -> URL? {
-        let panel = NSOpenPanel()
+enum OpenPanelDirectoryPath {
+    static func resolve(_ rawPath: String, fileManager: FileManager = .default) -> URL? {
+        let trimmedPath = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            return nil
+        }
+
+        let unquotedPath = trimmedPath.removingMatchingSurroundingQuotes()
+        let directoryURL: URL
+        if unquotedPath.lowercased().hasPrefix("file://"),
+           let fileURL = URL(string: unquotedPath),
+           fileURL.isFileURL {
+            directoryURL = fileURL
+        } else {
+            let expandedPath = (unquotedPath as NSString).expandingTildeInPath
+            guard expandedPath.hasPrefix("/") else {
+                return nil
+            }
+
+            directoryURL = URL(fileURLWithPath: expandedPath, isDirectory: true)
+        }
+
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return nil
+        }
+
+        return directoryURL.standardizedFileURL
+    }
+}
+
+enum OpenPanelConfiguration {
+    @MainActor
+    static func configure(_ panel: NSOpenPanel) {
         panel.title = "Open Markdown or Text"
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = EditableDocumentContentTypes.allowedContentTypes
+        panel.accessoryView = OpenPanelPathAccessoryView(panel: panel)
+        panel.isAccessoryViewDisclosed = true
+    }
+}
+
+private final class AppKitFileDialogs: FileDialoging {
+    func chooseOpenURL() -> URL? {
+        let panel = NSOpenPanel()
+        OpenPanelConfiguration.configure(panel)
         return panel.runModal() == .OK ? panel.url : nil
     }
 
@@ -165,6 +206,68 @@ private final class AppKitFileDialogs: FileDialoging {
         panel.title = "Save Markdown"
         panel.nameFieldStringValue = suggestedFileName
         return panel.runModal() == .OK ? panel.url : nil
+    }
+}
+
+private final class OpenPanelPathAccessoryView: NSView {
+    private weak var panel: NSOpenPanel?
+    private let pathField = NSTextField()
+    private let statusLabel = NSTextField(labelWithString: "")
+
+    init(panel: NSOpenPanel) {
+        self.panel = panel
+        super.init(frame: NSRect(x: 0, y: 0, width: 420, height: 56))
+        configureView()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    private func configureView() {
+        pathField.placeholderString = "Folder path"
+        pathField.target = self
+        pathField.action = #selector(goToDirectory)
+        pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let goButton = NSButton(title: "Go", target: self, action: #selector(goToDirectory))
+        goButton.bezelStyle = .rounded
+        goButton.setContentHuggingPriority(.required, for: .horizontal)
+
+        let row = NSStackView(views: [pathField, goButton])
+        row.orientation = .horizontal
+        row.spacing = 8
+        row.alignment = .centerY
+
+        statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.lineBreakMode = .byTruncatingMiddle
+
+        let stack = NSStackView(views: [row, statusLabel])
+        stack.orientation = .vertical
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            pathField.widthAnchor.constraint(greaterThanOrEqualToConstant: 300),
+        ])
+    }
+
+    @objc private func goToDirectory() {
+        guard let directoryURL = OpenPanelDirectoryPath.resolve(pathField.stringValue) else {
+            statusLabel.stringValue = "Folder not found"
+            NSSound.beep()
+            return
+        }
+
+        panel?.directoryURL = directoryURL
+        statusLabel.stringValue = directoryURL.path
     }
 }
 
@@ -186,6 +289,21 @@ private struct AppKitUnsavedChangesPrompt: UnsavedChangesPrompting {
         default:
             return .cancel
         }
+    }
+}
+
+private extension String {
+    func removingMatchingSurroundingQuotes() -> String {
+        guard count >= 2 else {
+            return self
+        }
+
+        let quotePairs: [(Character, Character)] = [("\"", "\""), ("'", "'")]
+        guard quotePairs.contains(where: { hasPrefix(String($0.0)) && hasSuffix(String($0.1)) }) else {
+            return self
+        }
+
+        return String(dropFirst().dropLast())
     }
 }
 
