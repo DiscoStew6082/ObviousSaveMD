@@ -68,4 +68,55 @@ struct MarkdownTextViewTests {
         #expect(!panel.canChooseDirectories)
         #expect(panel.canChooseFiles)
     }
+
+    @Test func openDialogPathEntryAccessoryKeepsControlsInsetAndSeparated() throws {
+        let panel = NSOpenPanel()
+        OpenPanelConfiguration.configure(panel)
+        let accessory = try #require(panel.accessoryView)
+        accessory.frame = NSRect(x: 0, y: 0, width: 520, height: 72)
+
+        accessory.layoutSubtreeIfNeeded()
+
+        let pathField = try #require(accessory.descendantTextField(placeholder: "Folder path"))
+        let goButton = try #require(accessory.descendantButton(title: "Go"))
+        let pathFrame = pathField.convert(pathField.bounds, to: accessory)
+        let buttonFrame = goButton.convert(goButton.bounds, to: accessory)
+
+        #expect(pathFrame.minX >= 12)
+        #expect(accessory.bounds.maxX - buttonFrame.maxX >= 12)
+        #expect(buttonFrame.minX - pathFrame.maxX >= 10)
+        #expect(pathFrame.minY >= 8)
+    }
+}
+
+private extension NSView {
+    func descendantTextField(placeholder: String) -> NSTextField? {
+        if let textField = self as? NSTextField,
+           textField.placeholderString == placeholder {
+            return textField
+        }
+
+        for subview in subviews {
+            if let textField = subview.descendantTextField(placeholder: placeholder) {
+                return textField
+            }
+        }
+
+        return nil
+    }
+
+    func descendantButton(title: String) -> NSButton? {
+        if let button = self as? NSButton,
+           button.title == title {
+            return button
+        }
+
+        for subview in subviews {
+            if let button = subview.descendantButton(title: title) {
+                return button
+            }
+        }
+
+        return nil
+    }
 }

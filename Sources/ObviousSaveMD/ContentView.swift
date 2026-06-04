@@ -209,6 +209,16 @@ private final class AppKitFileDialogs: FileDialoging {
     }
 }
 
+private enum OpenPanelPathAccessoryLayout {
+    static let width: CGFloat = 520
+    static let collapsedHeight: CGFloat = 48
+    static let expandedHeight: CGFloat = 68
+    static let horizontalInset: CGFloat = 14
+    static let verticalInset: CGFloat = 8
+    static let controlSpacing: CGFloat = 12
+    static let statusSpacing: CGFloat = 4
+}
+
 private final class OpenPanelPathAccessoryView: NSView {
     private weak var panel: NSOpenPanel?
     private let pathField = NSTextField()
@@ -216,7 +226,12 @@ private final class OpenPanelPathAccessoryView: NSView {
 
     init(panel: NSOpenPanel) {
         self.panel = panel
-        super.init(frame: NSRect(x: 0, y: 0, width: 420, height: 56))
+        super.init(frame: NSRect(
+            x: 0,
+            y: 0,
+            width: OpenPanelPathAccessoryLayout.width,
+            height: OpenPanelPathAccessoryLayout.collapsedHeight
+        ))
         configureView()
     }
 
@@ -237,37 +252,70 @@ private final class OpenPanelPathAccessoryView: NSView {
 
         let row = NSStackView(views: [pathField, goButton])
         row.orientation = .horizontal
-        row.spacing = 8
+        row.spacing = OpenPanelPathAccessoryLayout.controlSpacing
         row.alignment = .centerY
 
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusLabel.textColor = .secondaryLabelColor
+        statusLabel.isHidden = true
         statusLabel.lineBreakMode = .byTruncatingMiddle
 
         let stack = NSStackView(views: [row, statusLabel])
         stack.orientation = .vertical
-        stack.spacing = 4
+        stack.spacing = OpenPanelPathAccessoryLayout.statusSpacing
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stack.leadingAnchor.constraint(
+                equalTo: leadingAnchor,
+                constant: OpenPanelPathAccessoryLayout.horizontalInset
+            ),
+            stack.trailingAnchor.constraint(
+                equalTo: trailingAnchor,
+                constant: -OpenPanelPathAccessoryLayout.horizontalInset
+            ),
+            stack.topAnchor.constraint(
+                equalTo: topAnchor,
+                constant: OpenPanelPathAccessoryLayout.verticalInset
+            ),
+            stack.bottomAnchor.constraint(
+                equalTo: bottomAnchor,
+                constant: -OpenPanelPathAccessoryLayout.verticalInset
+            ),
             pathField.widthAnchor.constraint(greaterThanOrEqualToConstant: 300),
         ])
     }
 
     @objc private func goToDirectory() {
         guard let directoryURL = OpenPanelDirectoryPath.resolve(pathField.stringValue) else {
-            statusLabel.stringValue = "Folder not found"
+            showStatus("Folder not found")
             NSSound.beep()
             return
         }
 
         panel?.directoryURL = directoryURL
-        statusLabel.stringValue = directoryURL.path
+        clearStatus()
+    }
+
+    private func showStatus(_ message: String) {
+        statusLabel.stringValue = message
+        statusLabel.isHidden = false
+        setFrameSize(NSSize(
+            width: frame.width,
+            height: OpenPanelPathAccessoryLayout.expandedHeight
+        ))
+        needsLayout = true
+    }
+
+    private func clearStatus() {
+        statusLabel.stringValue = ""
+        statusLabel.isHidden = true
+        setFrameSize(NSSize(
+            width: frame.width,
+            height: OpenPanelPathAccessoryLayout.collapsedHeight
+        ))
+        needsLayout = true
     }
 }
 
