@@ -114,36 +114,175 @@ struct MarkdownTextView: NSViewRepresentable {
 
 final class MarkdownEditorTextView: NSTextView {
     override func paste(_ sender: Any?) {
-        let fragments = PlainTextPasteboardFragments.read(from: .general)
-        guard fragments.count > 1 else {
+        paste(sender, from: .general)
+    }
+
+    @discardableResult
+    func paste(_ sender: Any?, from pasteboard: NSPasteboard) -> Bool {
+        guard insertPreferredPasteboardText(from: pasteboard) else {
+            guard pasteboard.name == .general else {
+                return false
+            }
+
             super.paste(sender)
-            return
+            return false
         }
 
-        insertText(fragments.joined(separator: "\n"), replacementRange: selectedRange())
+        return true
+    }
+
+    @discardableResult
+    func insertPreferredPasteboardText(from pasteboard: NSPasteboard) -> Bool {
+        guard let text = PasteboardPlainText.preferredTextForEditorPaste(from: pasteboard) else {
+            return false
+        }
+
+        insertText(text, replacementRange: selectedRange())
+        return true
     }
 
     @discardableResult
     func insertPlainTextFragments(from pasteboard: NSPasteboard) -> Bool {
-        let fragments = PlainTextPasteboardFragments.read(from: pasteboard)
-        guard !fragments.isEmpty else {
+        guard let text = PasteboardPlainText.text(from: pasteboard) else {
             return false
         }
 
-        insertText(fragments.joined(separator: "\n"), replacementRange: selectedRange())
+        insertText(text, replacementRange: selectedRange())
         return true
     }
 }
 
-private enum PlainTextPasteboardFragments {
-    static func read(from pasteboard: NSPasteboard) -> [String] {
+private enum PasteboardPlainText {
+    static func preferredTextForEditorPaste(from pasteboard: NSPasteboard) -> String? {
+        guard pasteboard.pasteboardItems?.count ?? 0 > 1 else {
+            return nil
+        }
+
+        if let richText = richText(from: pasteboard) {
+            return richText
+        }
+
+        let fragments = plainTextFragments(from: pasteboard)
+        return fragments.count > 1 ? fragments.joined(separator: "\n") : nil
+    }
+
+    static func text(from pasteboard: NSPasteboard) -> String? {
+        if let richText = richText(from: pasteboard) {
+            return richText
+        }
+
+        let fragments = plainTextFragments(from: pasteboard)
+        guard !fragments.isEmpty else {
+            return normalizedPlainText(pasteboard.string(forType: .string))
+        }
+
+        return fragments.joined(separator: "\n")
+    }
+
+    private static func plainTextFragments(from pasteboard: NSPasteboard) -> [String] {
         guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
-            return pasteboard.string(forType: .string).map { [$0] } ?? []
+            return normalizedPlainText(pasteboard.string(forType: .string)).map { [$0] } ?? []
         }
 
         return items.compactMap { item in
-            let text = item.string(forType: .string) ?? ""
-            return text.isEmpty ? nil : text
+            normalizedPlainText(item.string(forType: .string))
+        }
+    }
+
+    private static func richText(from pasteboard: NSPasteboard) -> String? {
+        guard let items = pasteboard.pasteboardItems else {
+            return nil
+        }
+
+        let richFragments = items.map { item in
+            (
+                item: item,
+                text: attributedPlainText(from: item, type: .html, documentType: .html)
+                    ?? attributedPlainText(from: item, type: .rtf, documentType: .rtf)
+            )
+        }
+        let richText = richFragments.compactMap(\.text).joined(separator: "\n")
+        guard !richText.isEmpty else {
+            return nil
+        }
+
+        let fragments = richFragments.compactMap { fragment -> String? in
+            if let text = fragment.text {
+                return text
+            }
+
+            guard let plainText = normalizedPlainText(fragment.item.string(forType: .string)),
+                  !isRedundantPlainMetadata(plainText, in: richText) else {
+                return nil
+            }
+
+            return plainText
+        }
+
+        return fragments.joined(separator: "\n")
+    }
+
+    private static func attributedPlainText(
+        from item: NSPasteboardItem,
+        type: NSPasteboard.PasteboardType,
+        documentType: NSAttributedString.DocumentType
+    ) -> String? {
+        guard let data = item.data(forType: type) else {
+            return nil
+        }
+
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: documentType,
+            .characterEncoding: String.Encoding.utf8.rawValue,
+        ]
+        guard let attributedString = try? NSAttributedString(
+            data: data,
+            options: options,
+            documentAttributes: nil
+        ) else {
+            return nil
+        }
+
+        return normalizedRichText(attributedString.string, documentType: documentType)
+    }
+
+    private static func normalizedPlainText(_ text: String?) -> String? {
+        guard let text, !text.isEmpty else {
+            return nil
+        }
+
+        return text
+    }
+
+    private static func normalizedRichText(
+        _ text: String,
+        documentType: NSAttributedString.DocumentType
+    ) -> String? {
+        var normalizedText = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        if documentType == .html, normalizedText.hasSuffix("\n") {
+            normalizedText.removeLast()
+        }
+
+        return normalizedText.isEmpty ? nil : normalizedText
+    }
+
+    private static func isRedundantPlainMetadata(_ plainText: String, in richText: String) -> Bool {
+        return pathLikeTokens(in: richText).contains { token in
+            let lastPathComponent = URL(fileURLWithPath: token).lastPathComponent
+            return lastPathComponent == plainText || lastPathComponent.hasSuffix(plainText)
+        }
+    }
+
+    private static func pathLikeTokens(in text: String) -> [String] {
+        text.split { character in
+            character.isWhitespace || "\"'`()[]{}<>".contains(character)
+        }
+        .map { token in
+            token.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?"))
+        }
+        .filter { token in
+            token.contains("/")
         }
     }
 }

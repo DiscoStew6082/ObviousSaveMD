@@ -35,14 +35,10 @@ struct MarkdownTextViewTests {
         #expect(textView.string == "# Overview\nFirst section\n## Details\nSecond section")
     }
 
-    @Test func pasteCommandInsertsEveryGeneralClipboardTextItemAtCursor() throws {
+    @Test func pasteCommandInsertsEveryClipboardTextItemAtCursor() throws {
         let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "Before\nAfter")
         let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
-        let pasteboard = NSPasteboard.general
-        let snapshot = PasteboardSnapshot(pasteboard)
-        defer {
-            snapshot.restore(to: pasteboard)
-        }
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
 
         pasteboard.clearContents()
         let overview = NSPasteboardItem()
@@ -53,12 +49,145 @@ struct MarkdownTextViewTests {
         textView.setSelectedRange(NSRange(location: 7, length: 0))
 
         #expect(pasteboard.writeObjects([overview, details]))
-        textView.paste(nil)
+        #expect(textView.paste(nil, from: pasteboard))
 
         let insertedText = "# Overview\nFirst section\n## Details\nSecond section"
         #expect(textView.string == "Before\n\(insertedText)After")
         #expect(textView.selectedRange().location == 7 + (insertedText as NSString).length)
         #expect(textView.selectedRange().length == 0)
+    }
+
+    @Test func preferredPasteLeavesSingleRichClipboardForAppKit() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let item = NSPasteboardItem()
+        item.setString("Plain fallback", forType: .string)
+        item.setString("<html><body><p>Rich visible text</p></body></html>", forType: .html)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(!textView.insertPreferredPasteboardText(from: pasteboard))
+        #expect(textView.string.isEmpty)
+    }
+
+    @Test func preferredPasteKeepsFullRichSelectionOverLinkFragmentItems() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+
+        let fullSelection = """
+        Saved the public review at /tmp/obvioussavemd-fixtures/portfolio-repository-review.md. Verified links and kept unrelated clipboard metadata untouched.
+        """
+        let htmlSelection = """
+        <html><body><p>Saved the public review at <a href="file:///tmp/obvioussavemd-fixtures/portfolio-repository-review.md">/tmp/obvioussavemd-fixtures/portfolio-repository-review.md</a>. Verified links and kept unrelated clipboard metadata untouched.</p></body></html>
+        """
+
+        pasteboard.clearContents()
+        let linkTarget = NSPasteboardItem()
+        linkTarget.setString(
+            "/tmp/obvioussavemd-fixtures/portfolio-repository-review.md",
+            forType: .string
+        )
+        linkTarget.setString(htmlSelection, forType: .html)
+        let linkTitle = NSPasteboardItem()
+        linkTitle.setString("repository-review.md", forType: .string)
+
+        #expect(pasteboard.writeObjects([linkTarget, linkTitle]))
+        #expect(textView.insertPreferredPasteboardText(from: pasteboard))
+
+        #expect(textView.string == fullSelection)
+    }
+
+    @Test func preferredPasteDropsExactFilenameMetadataForRichPathSelections() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        let fullSelection = "Saved the review at /tmp/obvioussavemd-fixtures/report.md."
+        let htmlSelection = """
+        <html><body><p>Saved the review at /tmp/obvioussavemd-fixtures/report.md.</p></body></html>
+        """
+
+        pasteboard.clearContents()
+        let pathItem = NSPasteboardItem()
+        pathItem.setString("/tmp/obvioussavemd-fixtures/report.md", forType: .string)
+        pathItem.setString(htmlSelection, forType: .html)
+        let filenameItem = NSPasteboardItem()
+        filenameItem.setString("report.md", forType: .string)
+
+        #expect(pasteboard.writeObjects([pathItem, filenameItem]))
+        #expect(textView.insertPreferredPasteboardText(from: pasteboard))
+
+        #expect(textView.string == fullSelection)
+    }
+
+    @Test func namedPasteboardCommandFallbackDoesNotReadGeneralClipboard() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let item = NSPasteboardItem()
+        item.setString("Single named item", forType: .string)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(!textView.paste(nil, from: pasteboard))
+        #expect(textView.string.isEmpty)
+    }
+
+    @Test func pastingRichSelectionKeepsUnrelatedPlainClipboardItems() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let first = NSPasteboardItem()
+        first.setString("<html><body><p>First section</p></body></html>", forType: .html)
+        let second = NSPasteboardItem()
+        second.setString("Second section", forType: .string)
+
+        #expect(pasteboard.writeObjects([first, second]))
+        #expect(textView.insertPlainTextFragments(from: pasteboard))
+
+        #expect(textView.string == "First section\nSecond section")
+    }
+
+    @Test func pastingRichSelectionKeepsRepeatedPlainClipboardItems() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let first = NSPasteboardItem()
+        first.setString("<html><body><p>Second section</p></body></html>", forType: .html)
+        let second = NSPasteboardItem()
+        second.setString("Second section", forType: .string)
+
+        #expect(pasteboard.writeObjects([first, second]))
+        #expect(textView.insertPlainTextFragments(from: pasteboard))
+
+        #expect(textView.string == "Second section\nSecond section")
+    }
+
+    @Test func pastingRTFKeepsSelectedTrailingNewline() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let selectedText = "Line one\n"
+        let rtfData = try #require(NSAttributedString(string: selectedText).rtf(
+            from: NSRange(location: 0, length: (selectedText as NSString).length),
+            documentAttributes: [:]
+        ))
+        let item = NSPasteboardItem()
+        item.setData(rtfData, forType: .rtf)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(textView.insertPlainTextFragments(from: pasteboard))
+
+        #expect(textView.string == selectedText)
     }
 
     @Test func openDialogDocumentTypesAllowMarkdownAndPlainTextOnly() {
@@ -128,30 +257,6 @@ struct MarkdownTextViewTests {
         #expect(accessory.bounds.maxX - buttonFrame.maxX >= 12)
         #expect(buttonFrame.minX - pathFrame.maxX >= 10)
         #expect(pathFrame.minY >= 8)
-    }
-}
-
-private struct PasteboardSnapshot {
-    private let items: [NSPasteboardItem]
-
-    init(_ pasteboard: NSPasteboard) {
-        items = pasteboard.pasteboardItems?.map { item in
-            let copy = NSPasteboardItem()
-            for type in item.types {
-                if let data = item.data(forType: type) {
-                    copy.setData(data, forType: type)
-                }
-            }
-
-            return copy
-        } ?? []
-    }
-
-    func restore(to pasteboard: NSPasteboard) {
-        pasteboard.clearContents()
-        if !items.isEmpty {
-            pasteboard.writeObjects(items)
-        }
     }
 }
 
