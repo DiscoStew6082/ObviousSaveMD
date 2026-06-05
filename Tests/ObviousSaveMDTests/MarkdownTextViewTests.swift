@@ -19,6 +19,48 @@ struct MarkdownTextViewTests {
         #expect(textView.textContainer?.heightTracksTextView == false)
     }
 
+    @Test func pastingMultipleClipboardTextItemsInsertsEverySection() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let overview = NSPasteboardItem()
+        overview.setString("# Overview\nFirst section", forType: .string)
+        let details = NSPasteboardItem()
+        details.setString("## Details\nSecond section", forType: .string)
+
+        #expect(pasteboard.writeObjects([overview, details]))
+        #expect(textView.insertPlainTextFragments(from: pasteboard))
+        #expect(textView.string == "# Overview\nFirst section\n## Details\nSecond section")
+    }
+
+    @Test func pasteCommandInsertsEveryGeneralClipboardTextItemAtCursor() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "Before\nAfter")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard.general
+        let snapshot = PasteboardSnapshot(pasteboard)
+        defer {
+            snapshot.restore(to: pasteboard)
+        }
+
+        pasteboard.clearContents()
+        let overview = NSPasteboardItem()
+        overview.setString("# Overview\nFirst section", forType: .string)
+        let details = NSPasteboardItem()
+        details.setString("## Details\nSecond section", forType: .string)
+
+        textView.setSelectedRange(NSRange(location: 7, length: 0))
+
+        #expect(pasteboard.writeObjects([overview, details]))
+        textView.paste(nil)
+
+        let insertedText = "# Overview\nFirst section\n## Details\nSecond section"
+        #expect(textView.string == "Before\n\(insertedText)After")
+        #expect(textView.selectedRange().location == 7 + (insertedText as NSString).length)
+        #expect(textView.selectedRange().length == 0)
+    }
+
     @Test func openDialogDocumentTypesAllowMarkdownAndPlainTextOnly() {
         #expect(EditableDocumentContentTypes.allowsFileName("notes.md"))
         #expect(EditableDocumentContentTypes.allowsFileName("notes.markdown"))
@@ -86,6 +128,30 @@ struct MarkdownTextViewTests {
         #expect(accessory.bounds.maxX - buttonFrame.maxX >= 12)
         #expect(buttonFrame.minX - pathFrame.maxX >= 10)
         #expect(pathFrame.minY >= 8)
+    }
+}
+
+private struct PasteboardSnapshot {
+    private let items: [NSPasteboardItem]
+
+    init(_ pasteboard: NSPasteboard) {
+        items = pasteboard.pasteboardItems?.map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    copy.setData(data, forType: type)
+                }
+            }
+
+            return copy
+        } ?? []
+    }
+
+    func restore(to pasteboard: NSPasteboard) {
+        pasteboard.clearContents()
+        if !items.isEmpty {
+            pasteboard.writeObjects(items)
+        }
     }
 }
 

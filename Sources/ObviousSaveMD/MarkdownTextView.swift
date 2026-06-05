@@ -13,7 +13,7 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 
     static func makeConfiguredScrollView(text: String, delegate: NSTextViewDelegate? = nil) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
+        let scrollView = MarkdownEditorTextView.scrollableTextView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = false
@@ -108,6 +108,42 @@ struct MarkdownTextView: NSViewRepresentable {
             }
 
             text.wrappedValue = textView.string
+        }
+    }
+}
+
+final class MarkdownEditorTextView: NSTextView {
+    override func paste(_ sender: Any?) {
+        let fragments = PlainTextPasteboardFragments.read(from: .general)
+        guard fragments.count > 1 else {
+            super.paste(sender)
+            return
+        }
+
+        insertText(fragments.joined(separator: "\n"), replacementRange: selectedRange())
+    }
+
+    @discardableResult
+    func insertPlainTextFragments(from pasteboard: NSPasteboard) -> Bool {
+        let fragments = PlainTextPasteboardFragments.read(from: pasteboard)
+        guard !fragments.isEmpty else {
+            return false
+        }
+
+        insertText(fragments.joined(separator: "\n"), replacementRange: selectedRange())
+        return true
+    }
+}
+
+private enum PlainTextPasteboardFragments {
+    static func read(from pasteboard: NSPasteboard) -> [String] {
+        guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
+            return pasteboard.string(forType: .string).map { [$0] } ?? []
+        }
+
+        return items.compactMap { item in
+            let text = item.string(forType: .string) ?? ""
+            return text.isEmpty ? nil : text
         }
     }
 }
