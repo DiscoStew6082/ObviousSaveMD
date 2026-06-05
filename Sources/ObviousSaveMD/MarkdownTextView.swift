@@ -154,8 +154,9 @@ final class MarkdownEditorTextView: NSTextView {
 
 private enum PasteboardPlainText {
     static func preferredTextForEditorPaste(from pasteboard: NSPasteboard) -> String? {
-        guard pasteboard.pasteboardItems?.count ?? 0 > 1 else {
-            return nil
+        let itemCount = pasteboard.pasteboardItems?.count ?? 0
+        guard itemCount > 1 else {
+            return richTextWhenItAddsVisibleText(from: pasteboard)
         }
 
         if let richText = richText(from: pasteboard) {
@@ -164,6 +165,26 @@ private enum PasteboardPlainText {
 
         let fragments = plainTextFragments(from: pasteboard)
         return fragments.count > 1 ? fragments.joined(separator: "\n") : nil
+    }
+
+    private static func richTextWhenItAddsVisibleText(from pasteboard: NSPasteboard) -> String? {
+        guard let richText = richText(from: pasteboard) else {
+            return nil
+        }
+
+        let plainText = plainTextFragments(from: pasteboard).joined(separator: "\n")
+        let visibleRichText = richText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visiblePlainText = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !visibleRichText.isEmpty,
+              visibleRichText != visiblePlainText else {
+            return nil
+        }
+
+        if isPlainTextOnlyLinkTarget(plainText) {
+            return richText
+        }
+
+        return nil
     }
 
     static func text(from pasteboard: NSPasteboard) -> String? {
@@ -272,6 +293,16 @@ private enum PasteboardPlainText {
             let lastPathComponent = URL(fileURLWithPath: token).lastPathComponent
             return lastPathComponent == plainText || lastPathComponent.hasSuffix(plainText)
         }
+    }
+
+    private static func isPlainTextOnlyLinkTarget(_ plainText: String) -> Bool {
+        let normalizedPlainText = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedPlainText.hasPrefix("/")
+            || normalizedPlainText.hasPrefix("~/")
+            || normalizedPlainText.range(
+                of: #"^[A-Za-z][A-Za-z0-9+.-]*:\S+$"#,
+                options: .regularExpression
+            ) != nil
     }
 
     private static func pathLikeTokens(in text: String) -> [String] {

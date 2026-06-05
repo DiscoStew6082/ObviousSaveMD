@@ -72,6 +72,120 @@ struct MarkdownTextViewTests {
         #expect(textView.string.isEmpty)
     }
 
+    @Test func preferredPasteUsesSingleItemHTMLWhenPlainTextIsOnlyLinkTarget() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        let fullSelection = """
+        Saved the public review at /tmp/obvioussavemd-fixtures/portfolio-repository-review.md. Verified links and kept unrelated clipboard metadata untouched.
+        """
+        let htmlSelection = """
+        <html><body><p>Saved the public review at <a href="file:///tmp/obvioussavemd-fixtures/portfolio-repository-review.md">/tmp/obvioussavemd-fixtures/portfolio-repository-review.md</a>. Verified links and kept unrelated clipboard metadata untouched.</p></body></html>
+        """
+
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString(
+            "/tmp/obvioussavemd-fixtures/portfolio-repository-review.md",
+            forType: .string
+        )
+        item.setString(htmlSelection, forType: .html)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(textView.paste(nil, from: pasteboard))
+
+        #expect(textView.string == fullSelection)
+    }
+
+    @Test func preferredPasteUsesSingleItemHTMLLinkLabelOverPlainTarget() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let item = NSPasteboardItem()
+        item.setString("https://example.com/project-plan", forType: .string)
+        item.setString(
+            "<html><body><a href=\"https://example.com/project-plan\">Project plan</a></body></html>",
+            forType: .html
+        )
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(textView.paste(nil, from: pasteboard))
+
+        #expect(textView.string == "Project plan")
+    }
+
+    @Test func preferredPasteUsesSingleItemHTMLLinkLabelOverMailtoTarget() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let item = NSPasteboardItem()
+        item.setString("mailto:person@example.com", forType: .string)
+        item.setString(
+            "<html><body><a href=\"mailto:person@example.com\">Email person</a></body></html>",
+            forType: .html
+        )
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(textView.paste(nil, from: pasteboard))
+
+        #expect(textView.string == "Email person")
+    }
+
+    @Test func preferredPasteUsesSingleItemRTFWhenPlainTextIsOnlyLinkTarget() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let selectedText = "Review file"
+        let rtfData = try #require(NSAttributedString(string: selectedText).rtf(
+            from: NSRange(location: 0, length: (selectedText as NSString).length),
+            documentAttributes: [:]
+        ))
+        let item = NSPasteboardItem()
+        item.setString("/tmp/obvioussavemd-fixtures/report.md", forType: .string)
+        item.setData(rtfData, forType: .rtf)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(textView.paste(nil, from: pasteboard))
+
+        #expect(textView.string == selectedText)
+    }
+
+    @Test func preferredPasteLeavesEquivalentPathTextWithTrailingWhitespaceForAppKit() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let item = NSPasteboardItem()
+        item.setString("/tmp/obvioussavemd-fixtures/report.md\n", forType: .string)
+        item.setString("<html><body><p>/tmp/obvioussavemd-fixtures/report.md</p></body></html>", forType: .html)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(!textView.insertPreferredPasteboardText(from: pasteboard))
+        #expect(textView.string.isEmpty)
+    }
+
+    @Test func preferredPasteDoesNotTreatRelativePlainTextAsLinkMetadata() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+
+        let item = NSPasteboardItem()
+        item.setString("docs/release-notes", forType: .string)
+        item.setString("<html><body><a href=\"https://example.com/docs\">Release notes</a></body></html>", forType: .html)
+
+        #expect(pasteboard.writeObjects([item]))
+        #expect(!textView.paste(nil, from: pasteboard))
+        #expect(textView.string.isEmpty)
+    }
+
     @Test func preferredPasteKeepsFullRichSelectionOverLinkFragmentItems() throws {
         let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
         let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
