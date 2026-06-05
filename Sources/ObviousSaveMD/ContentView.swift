@@ -149,38 +149,6 @@ enum EditableDocumentContentTypes {
     }
 }
 
-enum OpenPanelDirectoryPath {
-    static func resolve(_ rawPath: String, fileManager: FileManager = .default) -> URL? {
-        let trimmedPath = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            return nil
-        }
-
-        let unquotedPath = trimmedPath.removingMatchingSurroundingQuotes()
-        let directoryURL: URL
-        if unquotedPath.lowercased().hasPrefix("file://"),
-           let fileURL = URL(string: unquotedPath),
-           fileURL.isFileURL {
-            directoryURL = fileURL
-        } else {
-            let expandedPath = (unquotedPath as NSString).expandingTildeInPath
-            guard expandedPath.hasPrefix("/") else {
-                return nil
-            }
-
-            directoryURL = URL(fileURLWithPath: expandedPath, isDirectory: true)
-        }
-
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            return nil
-        }
-
-        return directoryURL.standardizedFileURL
-    }
-}
-
 enum OpenPanelConfiguration {
     @MainActor
     static func configure(_ panel: NSOpenPanel) {
@@ -189,8 +157,6 @@ enum OpenPanelConfiguration {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = EditableDocumentContentTypes.allowedContentTypes
-        panel.accessoryView = OpenPanelPathAccessoryView(panel: panel)
-        panel.isAccessoryViewDisclosed = true
     }
 }
 
@@ -206,116 +172,6 @@ private final class AppKitFileDialogs: FileDialoging {
         panel.title = "Save Markdown"
         panel.nameFieldStringValue = suggestedFileName
         return panel.runModal() == .OK ? panel.url : nil
-    }
-}
-
-private enum OpenPanelPathAccessoryLayout {
-    static let width: CGFloat = 520
-    static let collapsedHeight: CGFloat = 48
-    static let expandedHeight: CGFloat = 68
-    static let horizontalInset: CGFloat = 14
-    static let verticalInset: CGFloat = 8
-    static let controlSpacing: CGFloat = 12
-    static let statusSpacing: CGFloat = 4
-}
-
-private final class OpenPanelPathAccessoryView: NSView {
-    private weak var panel: NSOpenPanel?
-    private let pathField = NSTextField()
-    private let statusLabel = NSTextField(labelWithString: "")
-
-    init(panel: NSOpenPanel) {
-        self.panel = panel
-        super.init(frame: NSRect(
-            x: 0,
-            y: 0,
-            width: OpenPanelPathAccessoryLayout.width,
-            height: OpenPanelPathAccessoryLayout.collapsedHeight
-        ))
-        configureView()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    private func configureView() {
-        pathField.placeholderString = "Folder path"
-        pathField.target = self
-        pathField.action = #selector(goToDirectory)
-        pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let goButton = NSButton(title: "Go", target: self, action: #selector(goToDirectory))
-        goButton.bezelStyle = .rounded
-        goButton.setContentHuggingPriority(.required, for: .horizontal)
-
-        let row = NSStackView(views: [pathField, goButton])
-        row.orientation = .horizontal
-        row.spacing = OpenPanelPathAccessoryLayout.controlSpacing
-        row.alignment = .centerY
-
-        statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        statusLabel.textColor = .secondaryLabelColor
-        statusLabel.isHidden = true
-        statusLabel.lineBreakMode = .byTruncatingMiddle
-
-        let stack = NSStackView(views: [row, statusLabel])
-        stack.orientation = .vertical
-        stack.spacing = OpenPanelPathAccessoryLayout.statusSpacing
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(
-                equalTo: leadingAnchor,
-                constant: OpenPanelPathAccessoryLayout.horizontalInset
-            ),
-            stack.trailingAnchor.constraint(
-                equalTo: trailingAnchor,
-                constant: -OpenPanelPathAccessoryLayout.horizontalInset
-            ),
-            stack.topAnchor.constraint(
-                equalTo: topAnchor,
-                constant: OpenPanelPathAccessoryLayout.verticalInset
-            ),
-            stack.bottomAnchor.constraint(
-                equalTo: bottomAnchor,
-                constant: -OpenPanelPathAccessoryLayout.verticalInset
-            ),
-            pathField.widthAnchor.constraint(greaterThanOrEqualToConstant: 300),
-        ])
-    }
-
-    @objc private func goToDirectory() {
-        guard let directoryURL = OpenPanelDirectoryPath.resolve(pathField.stringValue) else {
-            showStatus("Folder not found")
-            NSSound.beep()
-            return
-        }
-
-        panel?.directoryURL = directoryURL
-        clearStatus()
-    }
-
-    private func showStatus(_ message: String) {
-        statusLabel.stringValue = message
-        statusLabel.isHidden = false
-        setFrameSize(NSSize(
-            width: frame.width,
-            height: OpenPanelPathAccessoryLayout.expandedHeight
-        ))
-        needsLayout = true
-    }
-
-    private func clearStatus() {
-        statusLabel.stringValue = ""
-        statusLabel.isHidden = true
-        setFrameSize(NSSize(
-            width: frame.width,
-            height: OpenPanelPathAccessoryLayout.collapsedHeight
-        ))
-        needsLayout = true
     }
 }
 
@@ -337,21 +193,6 @@ private struct AppKitUnsavedChangesPrompt: UnsavedChangesPrompting {
         default:
             return .cancel
         }
-    }
-}
-
-private extension String {
-    func removingMatchingSurroundingQuotes() -> String {
-        guard count >= 2 else {
-            return self
-        }
-
-        let quotePairs: [(Character, Character)] = [("\"", "\""), ("'", "'")]
-        guard quotePairs.contains(where: { hasPrefix(String($0.0)) && hasSuffix(String($0.1)) }) else {
-            return self
-        }
-
-        return String(dropFirst().dropLast())
     }
 }
 

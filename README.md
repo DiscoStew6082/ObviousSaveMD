@@ -30,8 +30,6 @@ Build the app bundle, then open the printed `.app` path in Finder. Use Open, Sav
 - Save: Command-S
 - Save As: Shift-Command-S
 
-The Open panel includes a Folder path field. Paste an existing folder path there and choose Go to jump the panel to that folder; ObviousSaveMD does not read the clipboard automatically.
-
 The editor prompts before replacing or closing a document with unsaved changes.
 
 ## Requirements
