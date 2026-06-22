@@ -1,6 +1,20 @@
 # ObviousSaveMD
 
+[![CI](https://github.com/DiscoStew6082/ObviousSaveMD/actions/workflows/ci.yml/badge.svg)](https://github.com/DiscoStew6082/ObviousSaveMD/actions/workflows/ci.yml)
+
 ObviousSaveMD is a small native macOS Markdown and text editor built with SwiftUI and AppKit. It keeps Markdown as plain text in an `NSTextView`; there is no HTML preview, web view, script execution, or remote media loading path.
+
+## 30-second proof
+
+- **Problem:** many Markdown editors turn simple text editing into a preview/rendering surface with extra file and web risk.
+- **System:** native macOS editor shell using SwiftUI and AppKit, with plain-text Markdown editing in `NSTextView`.
+- **Safety boundary:** opens are limited to Markdown/text document types and validated after selection; hostile file intake rejects symlinks, non-regular files, named pipes, oversized files, NUL bytes, and invalid UTF-8.
+- **Correctness:** stale async open results are ignored when the current document changed or a newer open request happened.
+- **Stack:** Swift 6.3, SwiftUI, AppKit, Swift Testing, GitHub Actions, native app bundle script.
+
+**Recruiter signal:** this is a native desktop app proof artifact focused on local-first UX, file-safety boundaries, and tested AppKit edge cases rather than a web wrapper.
+
+![ObviousSaveMD native macOS editor demo](docs/assets/obvioussavemd-window.svg)
 
 ## Features
 
@@ -78,4 +92,6 @@ GitHub Actions runs `swift test` on push and pull request events via `.github/wo
 
 This is an early local macOS editor. It edits Markdown as plain text and does not include Markdown preview rendering, document sandbox entitlements, autosave, or notarized distribution packaging yet.
 
-No open-source license has been selected yet. Until a license is added, the code is not licensed for reuse.
+## License
+
+ObviousSaveMD is released under the [MIT License](LICENSE).

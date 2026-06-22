@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="560" viewBox="0 0 980 560" role="img" aria-labelledby="title desc">
+  <title id="title">ObviousSaveMD native macOS editor demo</title>
+  <desc id="desc">Mock native macOS Markdown editor window showing plain text Markdown, file path, save state, and file safety checks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="980" height="560" rx="26" fill="url(#bg)"/>
+  <rect x="58" y="48" width="864" height="464" rx="18" fill="#f8fafc" stroke="#cbd5e1"/>
+  <rect x="58" y="48" width="864" height="54" rx="18" fill="#e5e7eb"/>
+  <circle cx="88" cy="75" r="8" fill="#ff5f57"/>
+  <circle cx="114" cy="75" r="8" fill="#ffbd2e"/>
+  <circle cx="140" cy="75" r="8" fill="#28c840"/>
+  <text x="490" y="80" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" font-weight="700" fill="#111827">ObviousSaveMD — README.md</text>
+
+  <rect x="82" y="126" width="816" height="46" rx="10" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="106" y="155" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#3730a3">~/Documents/notes/README.md • saved • UTF-8 plain text</text>
+
+  <g font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="19" fill="#0f172a">
+    <text x="102" y="218"># Release notes</text>
+    <text x="102" y="258">- Plain Markdown in NSTextView</text>
+    <text x="102" y="298">- No WebView, no HTML preview execution</text>
+    <text x="102" y="338">- Reject symlinks, pipes, NUL bytes, invalid UTF-8</text>
+    <text x="102" y="378">- Stale async opens cannot overwrite current edits</text>
+  </g>
+
+  <rect x="82" y="420" width="816" height="54" rx="10" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="106" y="453" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="17" font-weight="700" fill="#166534">File safety first: local app, user-selected files, conservative open/save checks.</text>
+</svg>
