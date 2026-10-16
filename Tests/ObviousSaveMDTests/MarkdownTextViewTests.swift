@@ -31,7 +31,7 @@ struct MarkdownTextViewTests {
         details.setString("## Details\nSecond section", forType: .string)
 
         #expect(pasteboard.writeObjects([overview, details]))
-        #expect(textView.insertPlainTextFragments(from: pasteboard))
+        #expect(textView.paste(nil, from: pasteboard))
         #expect(textView.string == "# Overview\nFirst section\n## Details\nSecond section")
     }
 
@@ -186,7 +186,7 @@ struct MarkdownTextViewTests {
         #expect(textView.string.isEmpty)
     }
 
-    @Test func preferredPasteKeepsFullRichSelectionOverLinkFragmentItems() throws {
+    @Test func pastePreservesSeparatePlainItemEvenWhenItMatchesRichFilenameSuffix() throws {
         let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
         let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
@@ -209,12 +209,12 @@ struct MarkdownTextViewTests {
         linkTitle.setString("repository-review.md", forType: .string)
 
         #expect(pasteboard.writeObjects([linkTarget, linkTitle]))
-        #expect(textView.insertPreferredPasteboardText(from: pasteboard))
+        #expect(textView.paste(nil, from: pasteboard))
 
-        #expect(textView.string == fullSelection)
+        #expect(textView.string == fullSelection + "\nrepository-review.md")
     }
 
-    @Test func preferredPasteDropsExactFilenameMetadataForRichPathSelections() throws {
+    @Test func pastePreservesSeparatePlainItemEvenWhenItMatchesRichFilename() throws {
         let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
         let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
@@ -231,9 +231,9 @@ struct MarkdownTextViewTests {
         filenameItem.setString("report.md", forType: .string)
 
         #expect(pasteboard.writeObjects([pathItem, filenameItem]))
-        #expect(textView.insertPreferredPasteboardText(from: pasteboard))
+        #expect(textView.paste(nil, from: pasteboard))
 
-        #expect(textView.string == fullSelection)
+        #expect(textView.string == fullSelection + "\nreport.md")
     }
 
     @Test func namedPasteboardCommandFallbackDoesNotReadGeneralClipboard() throws {
@@ -262,7 +262,7 @@ struct MarkdownTextViewTests {
         second.setString("Second section", forType: .string)
 
         #expect(pasteboard.writeObjects([first, second]))
-        #expect(textView.insertPlainTextFragments(from: pasteboard))
+        #expect(textView.paste(nil, from: pasteboard))
 
         #expect(textView.string == "First section\nSecond section")
     }
@@ -279,7 +279,7 @@ struct MarkdownTextViewTests {
         second.setString("Second section", forType: .string)
 
         #expect(pasteboard.writeObjects([first, second]))
-        #expect(textView.insertPlainTextFragments(from: pasteboard))
+        #expect(textView.paste(nil, from: pasteboard))
 
         #expect(textView.string == "Second section\nSecond section")
     }
@@ -299,9 +299,35 @@ struct MarkdownTextViewTests {
         item.setData(rtfData, forType: .rtf)
 
         #expect(pasteboard.writeObjects([item]))
-        #expect(textView.insertPlainTextFragments(from: pasteboard))
+        #expect(textView.paste(nil, from: pasteboard))
 
         #expect(textView.string == selectedText)
+    }
+
+    @Test func emptyNamedPasteboardDoesNotChangeSelectionOrText() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "Keep this")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        textView.setSelectedRange(NSRange(location: 0, length: 4))
+        #expect(!textView.paste(nil, from: pasteboard))
+        #expect(textView.string == "Keep this")
+        #expect(textView.selectedRange() == NSRange(location: 0, length: 4))
+    }
+
+    @Test func malformedRichRepresentationFallsBackToSameItemsPlainText() throws {
+        let scrollView = MarkdownTextView.makeConfiguredScrollView(text: "")
+        let textView = try #require(scrollView.documentView as? MarkdownEditorTextView)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        let first = NSPasteboardItem()
+        first.setData(Data([0, 1, 2, 3]), forType: .rtf)
+        first.setString("First", forType: .string)
+        let second = NSPasteboardItem()
+        second.setString("Second", forType: .string)
+        #expect(pasteboard.writeObjects([first, second]))
+        #expect(textView.paste(nil, from: pasteboard))
+        #expect(textView.string == "First\nSecond")
     }
 
     @Test func openDialogDocumentTypesAllowMarkdownAndPlainTextOnly() {

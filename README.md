@@ -23,6 +23,9 @@ ObviousSaveMD is a small native macOS Markdown and text editor built with SwiftU
 - Show the current file name, path, save state, and macOS document-edited indicator.
 - Wrap long lines with a vertical scrollbar.
 - Preserve UTF-8 text, including non-ASCII Markdown.
+- Use one paste policy for the editor and clipboard fixtures. Rich and plain
+  representations from the same item are alternatives; separate plain-text
+  items are preserved even when their text resembles another item’s filename.
 
 ## File Safety
 
