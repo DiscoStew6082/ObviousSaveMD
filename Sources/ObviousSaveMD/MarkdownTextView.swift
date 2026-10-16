@@ -175,6 +175,10 @@ private enum PasteboardPlainText {
         if items.count == 1, let item = items.first {
             if let rich = item.richText {
                 guard let plain = item.plainText else { return .insert(rich) }
+                // AppKit may supply an equivalent plain representation for RTF.
+                // There is no competing interpretation when both are identical;
+                // preserve the decoded content, including its trailing newline.
+                if plain == rich { return .insert(rich) }
                 if isPlainTextOnlyLinkTarget(plain),
                    rich.trimmingCharacters(in: .whitespacesAndNewlines)
                     != plain.trimmingCharacters(in: .whitespacesAndNewlines) {
